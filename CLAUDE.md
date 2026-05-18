@@ -1,6 +1,7 @@
 # Claude Code Guidelines for Voxtype
 
-This document helps Claude Code (and human contributors) understand the voxtype codebase, make good architectural decisions, and submit PRs that align with project standards.
+This document helps Claude Code (and human contributors) understand the voxtype codebase, make good
+architectural decisions, and submit PRs that align with project standards.
 
 ## Table of Contents
 
@@ -25,23 +26,30 @@ This document helps Claude Code (and human contributors) understand the voxtype 
 
 These principles guide all development decisions:
 
-1. **Dead simple user experience** - Voxtype should just work. Installation, configuration, and daily use should be straightforward.
+1. **Dead simple user experience** - Voxtype should just work. Installation, configuration, and
+   daily use should be straightforward.
 
-2. **Backwards compatibility** - Never break existing installations. Config changes must have sensible defaults that preserve current behavior.
+2. **Backwards compatibility** - Never break existing installations. Config changes must have
+   sensible defaults that preserve current behavior.
 
-3. **Performance first** - Prioritize speed and responsiveness. On desktops this means fast transcription; on laptops this means battery efficiency.
+3. **Performance first** - Prioritize speed and responsiveness. On desktops this means fast
+   transcription; on laptops this means battery efficiency.
 
-4. **Excellent CLI help** - The `--help` output is documentation. Every option should be clear, with examples where helpful.
+4. **Excellent CLI help** - The `--help` output is documentation. Every option should be clear, with
+   examples where helpful.
 
-5. **Every option configurable everywhere** - Any setting should be configurable via CLI flag, environment variable, or config file.
+5. **Every option configurable everywhere** - Any setting should be configurable via CLI flag,
+   environment variable, or config file.
 
-6. **Documentation in the right places** - User-facing changes go in the user manual, troubleshooting guide, and configuration guide as appropriate.
+6. **Documentation in the right places** - User-facing changes go in the user manual,
+   troubleshooting guide, and configuration guide as appropriate.
 
 ---
 
 ## Architecture Overview
 
-Voxtype is a Linux-native push-to-talk voice-to-text daemon. The architecture follows a modular, trait-based design with async event handling.
+Voxtype is a Linux-native push-to-talk voice-to-text daemon. The architecture follows a modular,
+trait-based design with async event handling.
 
 ### High-Level Flow
 
@@ -124,28 +132,38 @@ Understanding why things are built a certain way helps you extend them correctly
 
 ### Hotkey Detection
 
-**Preferred:** Compositor keybindings (Hyprland, Sway, River) - native integration, no special permissions needed. Voxtype provides `voxtype record start/stop/toggle` commands for compositor bindings to call.
+**Preferred:** Compositor keybindings (Hyprland, Sway, River) - native integration, no special
+permissions needed. Voxtype provides `voxtype record start/stop/toggle` commands for compositor
+bindings to call.
 
-**Fallback:** evdev listener - works on X11 and as a universal fallback. Requires user to be in `input` group.
+**Fallback:** evdev listener - works on X11 and as a universal fallback. Requires user to be in
+`input` group.
 
 Set `[hotkey] enabled = false` when using compositor keybindings.
 
 ### GPU Memory and Performance
 
-**Priority:** Performance is critical. Fast transcription on desktops, battery efficiency on laptops.
+**Priority:** Performance is critical. Fast transcription on desktops, battery efficiency on
+laptops.
 
-**Trade-off:** GPU memory isn't released after in-process transcription, which causes memory growth over time. The `gpu_isolation = true` option spawns a child process that exits after transcription, releasing GPU memory.
+**Trade-off:** GPU memory isn't released after in-process transcription, which causes memory growth
+over time. The `gpu_isolation = true` option spawns a child process that exits after transcription,
+releasing GPU memory.
 
-**Guidance:** Don't assume users want GPU isolation by default. Some users prioritize keeping the model loaded for faster subsequent transcriptions. Let users choose based on their hardware and usage patterns.
+**Guidance:** Don't assume users want GPU isolation by default. Some users prioritize keeping the
+model loaded for faster subsequent transcriptions. Let users choose based on their hardware and
+usage patterns.
 
 ### Output Fallback Chain
 
-**Why:** No single output method works everywhere (wtype needs Wayland, ydotool needs daemon, dotool needs uinput access).
+**Why:** No single output method works everywhere (wtype needs Wayland, ydotool needs daemon, dotool
+needs uinput access).
 
 **Chain:** wtype → dotool → ydotool → clipboard
 
 - **wtype**: Wayland-native, best Unicode/CJK support, no daemon needed
-- **dotool**: Works on X11/Wayland/TTY, supports keyboard layouts via `DOTOOL_XKB_LAYOUT`, no daemon needed
+- **dotool**: Works on X11/Wayland/TTY, supports keyboard layouts via `DOTOOL_XKB_LAYOUT`, no daemon
+  needed
 - **ydotool**: Works on X11/Wayland/TTY, requires ydotoold daemon
 - **clipboard**: Universal fallback via wl-copy
 
@@ -165,7 +183,8 @@ This allows overriding any setting at any level without modifying config files.
 
 **Why:** Binaries built on modern CPUs can contain instructions that crash on older CPUs.
 
-**Solution:** Install SIGILL handler via `.init_array` constructor (runs before `main()`). If triggered, displays helpful message instead of silent crash.
+**Solution:** Install SIGILL handler via `.init_array` constructor (runs before `main()`). If
+triggered, displays helpful message instead of silent crash.
 
 ---
 
@@ -317,61 +336,17 @@ cargo run -- status --follow  # Watch state changes
 
 ## Roadmap
 
-### Packaging Priority
-
-Expanding distribution support is a current focus:
-
-1. **NixOS** - Next priority for packaging
-2. **Manjaro** - Sway/Hyprland ecosystem support
-3. **Other Sway/Hyprland distros** - Expand reach to tiling WM users
-4. **Homebrew on Linux** ([#177](https://github.com/peteonrails/voxtype/issues/177))
-5. **Silverblue / atomic distros** ([#178](https://github.com/peteonrails/voxtype/issues/178))
-
-Existing packages: Arch (AUR: `voxtype`, `voxtype-bin`), Debian (.deb), Fedora (.rpm)
-
-### Feature Roadmap
-
-Based on open issues and project direction.
-
-**v0.7.1 (confirmed):**
-- **voxtype-models CDN** - Host every ONNX engine model voxtype downloads (Cohere variants, Parakeet, Moonshine, SenseVoice, Paraformer, Dolphin, Omnilingual, ECAPA-TDNN diarization) on Cloudflare R2 behind `models.voxtype.io`. Removes the dependency on community HF accounts (`csukuangfj/*`, `istupakov/*`, `onnx-community/*`). Plumb a `models_base_url` indirection in `src/setup/model.rs`, ship per-model `manifest.json` with sha256s, validate downloads against the manifest, and write a mirror script that pulls upstream HF and pushes to R2 byte-identically. HF stays as a fallback so users behind firewalls keep working.
-- **Streaming transcription** ([#283](https://github.com/peteonrails/voxtype/issues/283)) - Parakeet-first, English-first push-to-stream mode. On a parallel agent's branch.
-
-**Near Term:**
-- **Deterministic integration tests** - Automated smoke tests using pre-recorded audio files that can run in CI without LLM/human interaction
-- **Meeting echo cancellation edge trimming** - Remove residual bleed-through words at segment boundaries when loopback audio is active. GTCRN handles the bulk of echo removal, but 1-2 stray words can appear at the start/end of mic segments where the STFT window crosses a chunk boundary.
-
-**Medium Term:**
-- **Audio caching** ([#28](https://github.com/peteonrails/voxtype/issues/28)) - Save recordings for replay/re-transcription
-- **Audio + output history** ([#209](https://github.com/peteonrails/voxtype/issues/209)) - Companion to audio caching; surface past dictations
-- **Native StatusNotifierItem tray** ([#267](https://github.com/peteonrails/voxtype/issues/267)) - Replace XEmbed tray for KDE Plasma / GNOME compatibility
-- **OpenAI-compatible local STT API** ([#244](https://github.com/peteonrails/voxtype/issues/244)) - Single daemon serves hotkey dictation + HTTP API for other tools
-
-**Exploratory:**
-- **Consolidated release binaries** - Reduce from 8 binaries today (avx2, avx512, vulkan, onnx-avx2, onnx-avx512, onnx-cuda-12, onnx-cuda-13, onnx-migraphx) to 3 (cpu, cuda, migraphx) by combining Whisper + Vulkan + ONNX engines into each binary. Vulkan and CUDA/MIGraphX fall back to CPU when no GPU is present, and ONNX Runtime does runtime CPU dispatch. Trade-off is losing AVX-512 Whisper performance (~10-30%) and larger binaries. Blocked on whisper.cpp/ggml adding runtime SIMD dispatch if AVX-512 performance must be preserved; otherwise, AVX2-only Whisper is safe on all x86-64 CPUs.
-- **Nemotron Speech backend** ([#47](https://github.com/peteonrails/voxtype/issues/47)) - Alternative ASR engine
-- **Vibe Voice backend** ([#285](https://github.com/peteonrails/voxtype/issues/285)) - Microsoft's speech model
-- **Dictation Intents** ([#231](https://github.com/peteonrails/voxtype/issues/231)) - Configurable per-shortcut behavior (translate vs transcribe, custom prompts)
-- **Parakeet sortformer for meeting diarization** - Evaluate parakeet-rs's sortformer feature as alternative to the current ml-diarization ECAPA-TDNN pipeline
-
-**Blocked/Waiting:**
-- **Nixpkgs onnxruntime MIGraphX support** - Verify the nixpkgs `onnxruntime` build (with `rocmSupport = true`) actually exposes the MIGraphX EP. The Nix flake's `parakeet-migraphx` output uses `onnxruntimeRocm` and sets `ORT_MIGRAPHX_MODEL_CACHE_PATH`; if MIGraphX isn't exposed in nixpkgs, ORT will fail to register the EP at runtime.
-- **Cohere decoder on CUDA** - Encoder runs on GPU; decoder pinned to CPU pending ORT's CUDA `GroupQueryAttention` kernel adding `attention_bias` support. Flip the second arg of `build_session(&decoder_file, threads, "decoder", false)` in `src/transcribe/cohere.rs` once ORT lands the kernel.
-
-### Non-Goals
-
-- Windows/macOS support (Linux-first, Wayland-native)
-- GUI configuration (GTK/Qt/web). A TUI (`voxtype configure`) is supported and
-  surfaced as a desktop-file launcher entry; CLI and config file remain the
-  primary interfaces for scripting and headless setups.
-- Continuous dictation mode (push-to-talk is the paradigm)
+See [docs/claude/ROADMAP.md](docs/claude/ROADMAP.md) for packaging priorities, the feature roadmap,
+blocked items, and non-goals.
 
 ---
 
 ## Git Commits
 
-- **Whenever discussing submitting work or creating a PR, remind the user to target `dev`, not `main`.** The `dev` branch is the integration branch; `main` tracks stable releases.
-- **NEVER commit without GPG signing.** All commits must be signed. Do not use `--no-gpg-sign` or skip signing for any reason.
+- **Whenever discussing submitting work or creating a PR, remind the user to target `dev`, not
+  `main`.** The `dev` branch is the integration branch; `main` tracks stable releases.
+- **NEVER commit without GPG signing.** All commits must be signed. Do not use `--no-gpg-sign` or
+  skip signing for any reason.
 - **Pull requests with unsigned commits will be rejected.** Every commit in a PR must be signed.
 - If GPG signing fails, stop and inform the user rather than bypassing signing.
 
@@ -379,9 +354,11 @@ Based on open issues and project direction.
 
 When work builds on contributions from others, always include appropriate credit:
 
-- **Use `Co-authored-by:` trailers** for commits that incorporate someone else's work, even if substantially modified
+- **Use `Co-authored-by:` trailers** for commits that incorporate someone else's work, even if
+  substantially modified
 - **When in doubt, give credit.** It's better to over-attribute than to omit someone's contribution
-- **Credit applies broadly:** code, ideas, bug reports, design feedback, and review comments all warrant acknowledgment
+- **Credit applies broadly:** code, ideas, bug reports, design feedback, and review comments all
+  warrant acknowledgment
 - **Check PR and issue history** to identify contributors whose work influenced the commit
 
 Examples of when to add co-author credit:
@@ -401,7 +378,9 @@ Multiple co-authors are fine when several people contributed to the work.
 
 **When bumping the version in Cargo.toml, ALWAYS update Cargo.lock before committing.**
 
-The AUR source package (`voxtype`) uses `cargo fetch --locked` and `cargo build --frozen`, which require Cargo.lock to exactly match Cargo.toml. If the version in Cargo.lock doesn't match Cargo.toml, the build fails.
+The AUR source package (`voxtype`) uses `cargo fetch --locked` and `cargo build --frozen`, which
+require Cargo.lock to exactly match Cargo.toml. If the version in Cargo.lock doesn't match
+Cargo.toml, the build fails.
 
 ```bash
 # Correct version bump process:
@@ -424,449 +403,33 @@ error: the lock file Cargo.lock needs to be updated but --locked was passed to p
 
 ## Building Release Binaries
 
-### Why Docker Builds Matter
-
-Building on modern CPUs (Zen 4, etc.) can leak AVX-512/GFNI instructions into binaries via system libstdc++, even with RUSTFLAGS set correctly. This causes SIGILL crashes on older CPUs (Zen 3, Haswell). Docker with Ubuntu 22.04 provides a clean toolchain without AVX-512 optimizations.
-
-Building on hosts with newer glibc (e.g. 2.43 on CachyOS/Arch) can produce binaries that won't run on distros with older glibc. Docker containers cap the glibc requirement at the container's version (Ubuntu 22.04 = 2.35, Ubuntu 24.04 = 2.39). **All release binaries must be built inside Docker containers** to ensure compatibility.
-
-### Build Strategy
-
-A full release requires **8 Linux binaries** (3 Whisper variants and 5 ONNX variants) plus a macOS arm64 DMG.
-
-**CRITICAL: Every binary must be built in Docker.** Never build release binaries directly on the host, even for AVX-512 or MIGraphX builds that require specific hardware. Run Docker locally on the machine with the required hardware instead.
-
-**Whisper Binaries (3):**
-
-| Binary | Dockerfile | Docker Context | Base Image | Max glibc |
-|--------|-----------|----------------|------------|-----------|
-| AVX2 | `Dockerfile.build` | Remote (pre-AVX-512) | Ubuntu 22.04 | 2.35 |
-| Vulkan | `Dockerfile.vulkan` | Remote (pre-AVX-512) | Ubuntu 24.04 | 2.39 |
-| AVX-512 | `Dockerfile.avx512` | Local (AVX-512 host) | Ubuntu 22.04 | 2.35 |
-
-**ONNX Binaries (all ONNX engines: Parakeet, Moonshine, SenseVoice, Paraformer, Dolphin, Omnilingual, Cohere):**
-
-| Binary | Dockerfile | Docker Context | Base Image | Max glibc |
-|--------|-----------|----------------|------------|-----------|
-| onnx-avx2 | `Dockerfile.onnx` | Remote (pre-AVX-512) | Ubuntu 24.04 | 2.39 |
-| onnx-avx512 | `Dockerfile.onnx-avx512` | Local (AVX-512 host) | Ubuntu 24.04 | 2.39 |
-| onnx-cuda-12 | `Dockerfile.onnx-cuda-12` | Remote (NVIDIA GPU) | nvidia/cuda:12.6.1-cudnn-devel-ubuntu24.04 | 2.39 |
-| onnx-cuda-13 | `Dockerfile.onnx-cuda-13` | Remote (NVIDIA GPU) | nvidia/cuda:13.0.3-cudnn-devel-ubuntu24.04 | 2.39 |
-| onnx-migraphx | `Dockerfile.onnx-migraphx` | Local (AMD GPU host) | Ubuntu 24.04 | 2.39 |
-
-Note: ort 2.0.0-rc.12's CUDA prebuilt is selected at build time (cu12 vs cu13)
-based on the ORT_CUDA_VERSION env var or build host's CUDA install. A single
-binary is locked to one CUDA major version. v0.7.0 ships both onnx-cuda-12
-and onnx-cuda-13; the AUR PKGBUILD or `voxtype setup gpu --enable` symlinks
-voxtype-onnx-cuda to whichever variant matches the host's runtime CUDA.
-
-Each GPU-using ONNX binary ships with its companion shared libraries
-(libonnxruntime_providers_*.so) which the EP dlopens at runtime via
-/proc/self/exe. scripts/package.sh installs each variant into its own
-subdirectory under /usr/lib/voxtype/ (cuda-12/, cuda-13/, migraphx/) so
-the .so files sit alongside the binary.
-
-Note: ONNX binaries include bundled ONNX Runtime which contains AVX-512 instructions, but ONNX Runtime uses runtime CPU detection and falls back gracefully on older CPUs.
-
-### GPU Feature Flags
-
-GPU acceleration is enabled via Cargo features:
-
-| Feature | Backend | Use Case |
-|---------|---------|----------|
-| `gpu-vulkan` | Vulkan | AMD GPUs, Intel GPUs, cross-platform |
-| `gpu-cuda` | CUDA | NVIDIA GPUs |
-| `gpu-hipblas` | ROCm/HIP | AMD GPUs (alternative to Vulkan) |
-| `gpu-metal` | Metal | macOS (not applicable for Linux builds) |
-
-**CRITICAL: Always run `cargo clean` before building with different features.**
-
-When switching between feature sets (e.g., CPU-only to GPU-enabled, or between different GPU backends), stale build artifacts can cause GPU support to silently fail at runtime. The binary will compile, have a different checksum, and appear correct, but GPU acceleration won't work.
-
-This is especially insidious because:
-- The build succeeds without errors
-- The binary size and checksum differ from previous builds
-- `--version` reports correctly
-- But GPU detection fails silently at runtime (e.g., `use gpu = 0` instead of `use gpu = 1`)
-
-```bash
-# Build with Vulkan GPU support
-cargo clean && cargo build --release --features gpu-vulkan
-
-# Build with CUDA GPU support
-cargo clean && cargo build --release --features gpu-cuda
-
-# Build CPU-only (no GPU feature)
-cargo clean && cargo build --release
-```
-
-### Remote Docker Context
-
-A remote server with a pre-AVX-512 CPU is ideal for building binaries that must be clean of AVX-512 instructions. Configure a Docker context pointing to this server.
-
-See `CLAUDE.local.md` for local infrastructure details (this file is gitignored).
-
-```bash
-# Switch to remote Docker context for AVX2/Vulkan builds
-docker context use <your-remote-context>
-
-# Build AVX2 and Vulkan binaries (safe, no AVX-512)
-VERSION=0.4.3 docker compose -f docker-compose.build.yml up avx2 vulkan
-
-# Switch back to local for AVX-512 build
-docker context use default
-```
-
-### Full Release Build Process
-
-**CRITICAL: Always use `--no-cache` for Docker builds and `cargo clean` for local builds.**
-
-Stale build artifacts cause two categories of failures:
-
-1. **Docker cache** - Without `--no-cache`, Docker may reuse layers with old version numbers. This caused AUR packages to ship v0.4.1 binaries labeled as v0.4.5.
-
-2. **Cargo incremental compilation** - Without `cargo clean`, switching between feature sets (e.g., CPU-only to `--features gpu-vulkan`) can produce binaries where GPU support silently fails at runtime. The binary compiles, has a different checksum, and reports the correct version, but GPU acceleration doesn't work. This is undetectable without actually testing GPU functionality.
-
-```bash
-# Set version
-export VERSION=0.5.0
-
-# 1. Build Whisper + ONNX binaries on remote server (no AVX-512 contamination)
-docker context use <your-remote-context>
-docker compose -f docker-compose.build.yml build --no-cache avx2 vulkan onnx-avx2
-docker compose -f docker-compose.build.yml up avx2 vulkan onnx-avx2
-
-# 2. Build ONNX CUDA on remote server (has NVIDIA GPU)
-docker compose -f docker-compose.build.yml build --no-cache onnx-cuda-12 onnx-cuda-13
-docker compose -f docker-compose.build.yml up onnx-cuda-12 onnx-cuda-13
-
-# 3. Copy binaries from remote Docker containers to local
-mkdir -p releases/${VERSION}
-docker cp macos-release-avx2-1:/output/. releases/${VERSION}/
-docker cp macos-release-vulkan-1:/output/. releases/${VERSION}/
-docker cp macos-release-onnx-avx2-1:/output/. releases/${VERSION}/
-docker cp macos-release-onnx-cuda-1:/output/. releases/${VERSION}/
-
-# 4. Build AVX-512 + MIGraphX binaries locally IN DOCKER (caps glibc at container version)
-docker context use <your-local-context>
-
-# Whisper AVX-512 + ONNX AVX-512 (requires AVX-512 capable host)
-docker compose -f docker-compose.build.yml --profile avx512 build --no-cache avx512 onnx-avx512
-docker compose -f docker-compose.build.yml --profile avx512 up avx512 onnx-avx512
-
-# ONNX MIGraphX (requires AMD GPU host)
-docker compose -f docker-compose.build.yml build --no-cache onnx-migraphx
-docker compose -f docker-compose.build.yml up onnx-migraphx
-
-# 5. VERIFY VERSIONS before uploading (critical!)
-for bin in releases/${VERSION}/voxtype-*; do
-  echo -n "$(basename $bin): "; $bin --version
-done
-
-# 6. Validate glibc, instruction sets, and package
-./scripts/package.sh --skip-build ${VERSION}
-```
-
-### Version Verification Checklist
-
-**Before uploading any release, verify ALL 7 binaries report the correct version:**
-
-```bash
-# Whisper binaries (3)
-releases/${VERSION}/voxtype-${VERSION}-linux-x86_64-avx2 --version
-releases/${VERSION}/voxtype-${VERSION}-linux-x86_64-avx512 --version
-releases/${VERSION}/voxtype-${VERSION}-linux-x86_64-vulkan --version
-
-# ONNX binaries
-releases/${VERSION}/voxtype-${VERSION}-linux-x86_64-onnx-avx2 --version
-releases/${VERSION}/voxtype-${VERSION}-linux-x86_64-onnx-avx512 --version
-releases/${VERSION}/voxtype-${VERSION}-linux-x86_64-onnx-cuda-12 --version
-releases/${VERSION}/voxtype-${VERSION}-linux-x86_64-onnx-cuda-13 --version
-releases/${VERSION}/voxtype-${VERSION}-linux-x86_64-onnx-migraphx --version
-```
-
-If versions don't match, the Docker cache is stale. Rebuild with `--no-cache`.
-
-### Functional Verification (GPU Builds)
-
-**Version checks and checksums are NOT sufficient to verify GPU builds.** A binary can report the correct version, have the expected file size, and still have non-functional GPU support due to stale build artifacts.
-
-For GPU-enabled binaries (Vulkan, CUDA, ROCm), verify GPU is actually detected:
-
-```bash
-# Test Vulkan build - should show "use gpu = 1" and "ggml_vulkan: Found N devices"
-./voxtype-${VERSION}-linux-x86_64-vulkan daemon &
-sleep 3
-journalctl --user -u voxtype --since "10 seconds ago" | grep -E "(use gpu|ggml_vulkan|Found.*devices)"
-# Expected: "use gpu = 1", "ggml_vulkan: Found 1 Vulkan devices"
-# Bad: "use gpu = 0" or "no GPU found"
-
-# For ONNX ROCm - should show ROCm execution provider
-./voxtype-${VERSION}-linux-x86_64-onnx-rocm daemon &
-sleep 3
-journalctl --user -u voxtype --since "10 seconds ago" | grep -iE "(rocm|execution provider)"
-```
-
-If GPU detection fails but the binary otherwise works, the build used stale artifacts. Run `cargo clean` and rebuild.
-
-### Validating Binaries (AVX-512 Detection)
-
-Use `objdump` to verify binaries don't contain forbidden instructions:
-
-```bash
-# Check for AVX-512 instructions (should be 0 for AVX2/Vulkan builds)
-objdump -d releases/0.4.3/voxtype-0.4.3-linux-x86_64-avx2 | grep -c zmm
-objdump -d releases/0.4.3/voxtype-0.4.3-linux-x86_64-vulkan | grep -c zmm
-
-# Check for GFNI instructions (should be 0 for AVX2/Vulkan builds)
-objdump -d releases/0.4.3/voxtype-0.4.3-linux-x86_64-avx2 | grep -cE 'vgf2p8|gf2p8'
-
-# Verify AVX-512 build DOES have AVX-512 (should be >0)
-objdump -d releases/0.4.3/voxtype-0.4.3-linux-x86_64-avx512 | grep -c zmm
-```
-
-What to look for:
-- `zmm` registers = 512-bit AVX-512 registers (forbidden in AVX2/Vulkan)
-- `vpternlog`, `vpermt2`, `vpblendm` = AVX-512 specific instructions
-- `{1to4}`, `{1to8}`, `{1to16}` = AVX-512 broadcast syntax
-- `vgf2p8`, `gf2p8` = GFNI instructions (not on Zen 3)
-
-### Validating glibc Compatibility
-
-**CRITICAL: All release binaries must be checked for glibc version requirements.**
-
-Building outside Docker (directly on the host) can silently link against the host's glibc, producing binaries that won't run on distros with older glibc. This caused the v0.6.0 incident where binaries built on CachyOS (glibc 2.43) failed on Omarchy/Arch (glibc 2.41) with:
-```
-/usr/bin/voxtype: /usr/lib/libm.so.6: version `GLIBC_2.43' not found
-```
-
-```bash
-# Check max glibc requirement for each binary
-for bin in releases/${VERSION}/voxtype-${VERSION}-linux-x86_64-*; do
-  max_glibc=$(objdump -T "$bin" 2>/dev/null | grep -oP 'GLIBC_\d+\.\d+' | sort -t. -k2 -n -u | tail -1)
-  echo "$(basename $bin): $max_glibc"
-done
-```
-
-**Acceptable glibc versions:**
-
-| Binary | Base Image | Max Allowed glibc |
-|--------|-----------|-------------------|
-| avx2 | Ubuntu 22.04 | 2.35 |
-| avx512 | Ubuntu 22.04 | 2.35 |
-| vulkan | Ubuntu 24.04 | 2.39 |
-| onnx-avx2 | Ubuntu 24.04 | 2.39 |
-| onnx-avx512 | Ubuntu 24.04 | 2.39 |
-| onnx-cuda-12 | Ubuntu 24.04 | 2.39 |
-| onnx-cuda-13 | Ubuntu 24.04 | 2.39 |
-| onnx-migraphx | Ubuntu 24.04 | 2.39 |
-
-If any binary exceeds its expected glibc version, it was likely built outside Docker. Rebuild it in the appropriate Docker container.
-
-### ONNX Binary Instruction Leakage
-
-**IMPORTANT: ONNX binaries also need AVX-512 instruction checks**, even when built on pre-AVX-512 hardware.
-
-The `ort` crate downloads prebuilt ONNX Runtime binaries that may contain AVX-512 instructions regardless of the build host's CPU. This is different from Whisper builds where the leakage comes from system libraries.
-
-```bash
-# Check ONNX binaries for AVX-512 leakage
-objdump -d voxtype-*-onnx-avx2 | grep -c zmm
-# If >0, the ONNX Runtime contains AVX-512 instructions
-```
-
-**Mitigation options:**
-1. **Accept fallback behavior** - ONNX Runtime will fall back to non-AVX-512 code paths at runtime on unsupported CPUs (may cause slight performance penalty)
-2. **Build ONNX Runtime from source** - Use `ORT_STRATEGY=build` to compile ONNX Runtime with specific CPU flags (significantly increases build time)
-3. **Use `load-dynamic` feature** - Link against system ONNX Runtime instead of bundled (requires users to install ONNX Runtime separately)
-
-For now, ONNX binaries may contain AVX-512 instructions from ONNX Runtime but should still run on pre-AVX-512 CPUs via runtime fallback. Test on target hardware to verify.
-
-### Packaging Deb and RPM
-
-After binaries are built and validated:
-
-```bash
-# Full build + package (builds binaries if missing)
-./scripts/package.sh 0.4.3
-
-# Package only (use existing binaries)
-./scripts/package.sh --skip-build 0.4.3
-
-# Deb only
-./scripts/package.sh --deb-only --skip-build 0.4.3
-
-# RPM only
-./scripts/package.sh --rpm-only --skip-build 0.4.3
-```
-
-Packages are output to `releases/${VERSION}/`:
-- `voxtype_${VERSION}-1_amd64.deb`
-- `voxtype-${VERSION}-1.x86_64.rpm`
-
-Requirements: `fpm` (gem install fpm), `rpmbuild` for RPM
+Release engineering procedures (Docker build matrix, GPU feature flags,
+version/glibc/instruction-set validation, deb/rpm packaging) live in
+[docs/claude/RELEASE_BUILDS.md](docs/claude/RELEASE_BUILDS.md). The `/build-release`,
+`/validate-binaries`, and `/package-release` skills consult it.
 
 ## AUR Packages
 
-- AUR repos are nested git repos in `packaging/arch/`, `packaging/arch-bin/`, and `packaging/arch-bin-rc/`
-- These directories are ignored by the main repo (in `.gitignore`)
-- To publish to AUR: `cd packaging/arch && git add -A && git commit -m "message" && git push`
-- GPG signing key for AUR repos: `E79F5BAF8CD51A806AA27DBB7DA2709247D75BC6`
-
-### Two AUR channels: voxtype-bin vs voxtype-bin-rc
-
-There are two prebuilt-binary AUR packages:
-
-- **`voxtype-bin`** tracks the latest GitHub *stable* release. This is what 99% of users want.
-- **`voxtype-bin-rc`** tracks the latest GitHub *pre-release* tag (e.g., `v0.7.3-rc1`). For users who want to test RC builds without giving up their stable install path.
-
-The split exists because users running prebuilt binaries shouldn't accidentally upgrade onto an RC and inherit its rough edges. By keeping them as separate AUR packages, the stable channel only advances when stable does.
-
-**conflicts/provides setup.** `voxtype-bin-rc` declares `provides=('voxtype')` and `conflicts=('voxtype' 'voxtype-bin')`. Stable `voxtype-bin` keeps its existing `conflicts=('voxtype')`. So a user can only have one channel installed at a time, and tools that depend on `voxtype` (e.g., `voxtype-osd`) are satisfied by either package. Switching is a remove-then-install: `yay -R voxtype-bin && yay -S voxtype-bin-rc`.
-
-**Maintenance burden.** Each RC tag requires the same update workflow on `packaging/arch-bin-rc/` as a stable release requires on `packaging/arch-bin/`:
-
-1. Bump `pkgver` (using the dot-separated form, e.g., `0.7.3.rc1`)
-2. Update `sha256sums` from the uploaded GitHub pre-release artifacts
-3. Regenerate `.SRCINFO` via `makepkg --printsrcinfo > .SRCINFO`
-4. Commit and push the nested git repo to `aur:voxtype-bin-rc`
-
-That's twice the AUR work per cycle. The `aur-publish` skill should be extended to cover both channels.
-
-**The `_upstream_ver` trick.** AUR forbids hyphens in `pkgver` because the hyphen delimits `pkgrel` (`pkgver-pkgrel`). GitHub release tags for RCs use hyphens (`v0.7.3-rc1`). The `voxtype-bin-rc` PKGBUILD stores the version as `pkgver=0.7.3.rc1` and computes `_upstream_ver="${pkgver/.rc/-rc}"` to derive the real tag (`0.7.3-rc1`) for download URLs. If we ever change the RC naming convention upstream (e.g., to `v0.7.3-beta1`), the mangling rule in `_upstream_ver` has to change too.
-
-### AUR Versioning: pkgver vs pkgrel
-
-**For the `voxtype-bin` package, always bump `pkgver`, never just `pkgrel` when binaries change.**
-
-The binary download URLs include `pkgver` but not `pkgrel`:
-```
-https://github.com/peteonrails/voxtype/releases/download/v$pkgver/voxtype-$pkgver-linux-x86_64-avx2
-```
-
-When only `pkgrel` is bumped, the URL stays the same. AUR helpers like yay cache PKGBUILDs and see "same URL = same file," causing checksum failures when binaries have actually changed.
-
-**When to use each:**
-
-| Scenario | Action |
-|----------|--------|
-| New binary release | Bump `pkgver`, reset `pkgrel` to 1, create new GitHub release |
-| Fix PKGBUILD only (deps, install script) | Bump `pkgrel` |
-| Binaries were wrong/corrupted | **Release new version** (bump `pkgver`), don't try to fix in place |
-
-**Never do this:**
-- Re-upload different binaries to an existing GitHub release
-- Bump only `pkgrel` when binary content has changed
-
-This caused the v0.4.5 incident where users had cached PKGBUILDs with old checksums that didn't match re-uploaded binaries.
-
-### Post-Install Message
-
-When updating the AUR packages, also update the post-upgrade message in `packaging/arch-bin/voxtype-bin.install` to reflect the current release highlights.
-
-The `post_upgrade()` function displays a message to users after they upgrade. This should summarize what's new in the version they just installed, not old releases.
-
-```bash
-# Check current message
-cat packaging/arch-bin/voxtype-bin.install
-
-# Update the post_upgrade() message with current version highlights
-# Then commit with the PKGBUILD changes
-```
+AUR publishing rules (channel split between `voxtype-bin` and `voxtype-bin-rc`, `pkgver` vs `pkgrel`
+policy, post-upgrade message) live in [docs/claude/AUR.md](docs/claude/AUR.md). The `/aur-publish`
+skill consults it.
 
 ## Release Notes and Website News
 
-**Every GitHub release must have a corresponding news article on the website.**
-
-When publishing a release to GitHub, also add a matching article to `website/news/index.html`. The content should mirror the GitHub release notes.
-
-### Capturing All Features
-
-Before writing release notes, review all commits since the last release to ensure nothing is missed:
-
-```bash
-git log --oneline v0.4.14..HEAD  # Replace with previous version tag
-```
-
-Check for:
-- New features and configuration options
-- Bug fixes
-- Performance improvements
-- Deprecations
-- Contributors to credit
-
-Don't just document the most recent work - capture everything that shipped since the last release.
-
-### Style Guide (follow v0.4.10 and v0.4.11 as examples)
-
-**Avoid AI writing patterns:**
-- No em-dashes (—). Use regular dashes, colons, or separate sentences instead.
-- No "delve", "leverage", "utilize", "streamline", "robust", "seamless"
-- No excessive hedging ("It's worth noting that...", "Interestingly...")
-- No formulaic transitions ("Let's dive in", "Without further ado")
-- No punchy one-liner endings to paragraphs ("And that's the point.", "Simple as that.", "No thoughts, just vibes.")
-- No sentence fragments for dramatic effect ("The result? Faster builds.", "The fix? Simple.")
-- Write plainly and directly. The existing news posts are the voice to match.
-
-**GitHub Release Notes (Markdown):**
-- Version and headline in title: "v0.4.11: Remote Whisper, Cancel Transcription, Output Mode Override"
-- Brief intro paragraph summarizing the release
-- `###` sections for each major feature
-- **"Why use it:"** callouts explaining the user benefit
-- Code blocks with examples (config snippets, CLI commands)
-- Bug fixes as a bullet list
-- Downloads table and checksums at the end
-
-**Website News Article (HTML):**
-- Add new article at the top of the articles list in `website/news/index.html`
-- Use the `id` attribute for anchor links (e.g., `id="v0411"`)
-- `article-meta` with date and `<span class="article-tag">Release</span>`
-- Same h2 title as GitHub release
-- h3 subsections matching the GitHub structure
-- **Why use it:** in `<strong>` tags
-- Code blocks wrapped in `<div class="code-block">` with optional `<div class="code-header">` for labels
-
-**Example structure:**
-```html
-<article class="news-article" id="v0412">
-    <div class="article-meta">
-        <time datetime="2026-01-15">January 15, 2026</time>
-        <span class="article-tag">Release</span>
-    </div>
-    <h2>v0.4.12: Feature Summary Here</h2>
-    <div class="article-body">
-        <p>Intro paragraph...</p>
-
-        <h3>Feature Name</h3>
-        <p>Description of what it does.</p>
-        <p><strong>Why use it:</strong> User benefit explanation.</p>
-
-        <div class="code-block">
-            <div class="code-header"><span>config.toml</span></div>
-            <pre><code>[section]
-option = "value"</code></pre>
-        </div>
-    </div>
-</article>
-```
-
-**Checklist for releases:**
-1. Create GitHub release with notes following the style above
-2. Add matching article to `website/news/index.html`
-3. Update download examples in `website/index.html` (deb/rpm URLs with new version)
-4. Update `packaging/arch-bin/voxtype-bin.install` post_upgrade() message with current version highlights
-5. Commit and push website changes
-6. Push AUR package updates
+Style guide and checklist for GitHub release notes and the matching website news article live in
+[docs/claude/RELEASE_NOTES.md](docs/claude/RELEASE_NOTES.md). The `/update-docs` skill consults it.
 
 ## Website
 
-The website at voxtype.io is hosted via GitHub Pages. It deploys automatically when changes to `website/` are merged to main. No separate deployment step is needed.
+The website at voxtype.io is hosted via GitHub Pages. It deploys automatically when changes to
+`website/` are merged to main. No separate deployment step is needed.
 
 ## Development Notes
 
 ### Killing the Daemon
 
-When using `pkill voxtype` or manually killing the daemon, Waybar status followers (`voxtype status --follow`) will also be terminated. After restarting the daemon:
+When using `pkill voxtype` or manually killing the daemon, Waybar status followers (`voxtype status
+--follow`) will also be terminated. After restarting the daemon:
 
 ```bash
 # Either reload Waybar entirely
@@ -875,7 +438,8 @@ pkill -SIGUSR2 waybar
 # Or the followers will reconnect on next Waybar restart
 ```
 
-The systemd unit restart (`systemctl --user restart voxtype`) handles this gracefully, but manual kills require Waybar attention.
+The systemd unit restart (`systemctl --user restart voxtype`) handles this gracefully, but manual
+kills require Waybar attention.
 
 ### Binary Location Priority
 
@@ -894,4 +458,5 @@ hash -r  # Clear shell's command cache
 
 See [docs/SMOKE_TESTS.md](docs/SMOKE_TESTS.md) for comprehensive manual testing procedures.
 
-For automated regression testing, use the `/regression-test` skill which covers unit tests, CLI commands, config validation, and binary variant verification.
+For automated regression testing, use the `/regression-test` skill which covers unit tests, CLI
+commands, config validation, and binary variant verification.
