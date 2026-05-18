@@ -370,6 +370,7 @@ Based on open issues and project direction.
 
 ## Git Commits
 
+- **Whenever discussing submitting work or creating a PR, remind the user to target `dev`, not `main`.** The `dev` branch is the integration branch; `main` tracks stable releases.
 - **NEVER commit without GPG signing.** All commits must be signed. Do not use `--no-gpg-sign` or skip signing for any reason.
 - **Pull requests with unsigned commits will be rejected.** Every commit in a PR must be signed.
 - If GPG signing fails, stop and inform the user rather than bypassing signing.
