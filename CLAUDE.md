@@ -54,7 +54,11 @@ trait-based design with async event handling.
 ### High-Level Flow
 
 ```
-Hotkey (compositor/evdev) → Audio Capture (cpal) → Transcription (whisper-rs) → Text Processing → Output (wtype/ydotool/clipboard)
+Hotkey (compositor/evdev)
+  → Audio Capture (cpal)
+  → Transcription (whisper-rs)
+  → Text Processing
+  → Output (wtype/ydotool/clipboard)
 ```
 
 ### Core Components
@@ -68,51 +72,16 @@ Hotkey (compositor/evdev) → Audio Capture (cpal) → Transcription (whisper-rs
 | CPU | `src/cpu.rs` | SIGILL handler, CPU feature detection |
 | Error | `src/error.rs` | `thiserror` types with user-friendly messages |
 
-### Module Structure
-
-```
-src/
-├── hotkey/           # Keyboard input detection
-│   ├── mod.rs        # HotkeyListener trait, factory
-│   └── evdev_listener.rs  # Kernel-level via evdev (fallback for X11)
-├── audio/            # Audio I/O
-│   ├── mod.rs        # AudioCapture trait, factory
-│   ├── cpal_capture.rs   # PipeWire/PulseAudio/ALSA via cpal
-│   └── feedback.rs   # Audio playback for cues
-├── transcribe/       # Speech-to-text
-│   ├── mod.rs        # Transcriber trait, factory, prepare() optimization
-│   ├── whisper.rs    # Local in-process via whisper-rs
-│   ├── remote.rs     # HTTP API (OpenAI-compatible)
-│   ├── subprocess.rs # GPU isolation wrapper
-│   └── worker.rs     # Child process entry point
-├── output/           # Text delivery
-│   ├── mod.rs        # TextOutput trait, factory, fallback chain
-│   ├── wtype.rs      # Wayland-native (best Unicode support)
-│   ├── dotool.rs     # Keyboard layout support via uinput
-│   ├── ydotool.rs    # X11/TTY fallback (requires daemon)
-│   ├── clipboard.rs  # Universal fallback via wl-copy
-│   ├── paste.rs      # Clipboard + Ctrl+V
-│   └── post_process.rs   # LLM cleanup command
-├── text/             # Text transformations
-│   └── mod.rs        # Spoken punctuation, replacements
-└── setup/            # Installation helpers
-    ├── model.rs      # Model selection & download
-    ├── gpu.rs        # GPU feature detection
-    ├── waybar.rs     # Waybar config snippets
-    ├── systemd.rs    # Service installation
-    └── compositor.rs # Hyprland/Sway/River keybinding setup
-```
-
 ### Trait-Based Extensibility
 
-Each major component defines a trait allowing multiple implementations:
+Each major component defines a trait in `src/<area>/mod.rs`, with implementations in sibling files:
 
-| Trait | Implementations | Extension Point |
-|-------|----------------|-----------------|
-| `HotkeyListener` | `EvdevListener` | Add libinput, compositor-specific listeners |
-| `AudioCapture` | `CpalCapture` | Add JACK, direct ALSA support |
-| `Transcriber` | `WhisperTranscriber`, `RemoteTranscriber`, `SubprocessTranscriber` | Add new ASR backends |
-| `TextOutput` | `WtypeOutput`, `DotoolOutput`, `YdotoolOutput`, `ClipboardOutput` | Add X11, compositor-specific output |
+| Trait | Extension Point |
+|-------|-----------------|
+| `HotkeyListener` | Add libinput, compositor-specific listeners |
+| `AudioCapture` | Add JACK, direct ALSA support |
+| `Transcriber` | Add new ASR backends |
+| `TextOutput` | Add X11, compositor-specific output |
 
 ---
 
@@ -361,18 +330,10 @@ When work builds on contributions from others, always include appropriate credit
   warrant acknowledgment
 - **Check PR and issue history** to identify contributors whose work influenced the commit
 
-Examples of when to add co-author credit:
-- Cherry-picking or rebasing commits from a PR (even if you resolve conflicts or make changes)
-- Implementing a feature based on someone's detailed issue or design proposal
-- Fixing a bug that someone else identified and diagnosed
-- Incorporating code snippets or approaches suggested in review comments
-
 Format:
 ```
 Co-authored-by: Name <email@example.com>
 ```
-
-Multiple co-authors are fine when several people contributed to the work.
 
 ## Version Bumping
 
@@ -395,11 +356,6 @@ git commit -S -m "Bump version to X.Y.Z"
 ```
 
 **Never commit a version bump to Cargo.toml without also committing the updated Cargo.lock.**
-
-This caused the v0.4.6 incident where users building from source got:
-```
-error: the lock file Cargo.lock needs to be updated but --locked was passed to prevent this
-```
 
 ## Building Release Binaries
 
